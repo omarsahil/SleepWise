@@ -169,9 +169,8 @@ export default function Dashboard() {
         navItems={navItems}
         onLogClick={() => setIsModalOpen(true)}
       />
-      {/* Remove the sidebar with CalendarDashboard, now in NavBar */}
-      {/* Main content area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 relative z-10 overflow-y-auto">
+      {/* Main content area - improved for mobile */}
+      <main className="flex-1 p-2 xs:p-3 sm:p-4 md:p-6 lg:p-8 pb-20 md:pb-8 relative z-10 overflow-y-auto max-w-full w-full mx-auto">
         <AnimatePresence mode="wait" initial={false}>
           {loading ? (
             <motion.div
@@ -206,9 +205,7 @@ export default function Dashboard() {
                   calculateSleepScore={calculateSleepScore}
                 />
               )}
-              {activePage === "calendar" && (
-                <CalendarDashboard />
-              )}
+              {activePage === "calendar" && <CalendarDashboard />}
               {activePage === "analysis" && (
                 <Analysis
                   sleepData={sleepData}
@@ -227,7 +224,10 @@ export default function Dashboard() {
                 />
               )}
               {activePage === "settings" && (
-                <SettingsPanel settings={settings} onSettingsChange={setSettings} />
+                <SettingsPanel
+                  settings={settings}
+                  onSettingsChange={setSettings}
+                />
               )}
             </>
           )}

@@ -37,23 +37,25 @@ const NavBar: React.FC<NavBarProps> = ({
       <div className="hidden md:block text-center mt-8 mb-8">
         <Bed size={32} className="mx-auto text-purple-400" />
       </div>
-      <div className="flex flex-1 w-full md:flex-col md:justify-center md:gap-6 gap-0 justify-between">
+      <div className="flex flex-1 w-full md:flex-col md:justify-center md:gap-6 gap-4 justify-between px-2">
         {/* Navigation links */}
         {navItems.map((item) => (
           <button
             key={item.page}
             onClick={() => setActivePage(item.page)}
-            className={`relative flex flex-col items-center justify-center space-y-1 w-full py-2 px-1 rounded-lg transition-colors duration-200 ${
-              activePage === item.page
-                ? "text-purple-400"
-                : "text-gray-400 hover:text-white"
-            }`}
+            className={`relative flex flex-col items-center justify-center space-y-1 w-full py-3 px-2 rounded-xl transition-colors duration-200
+              ${
+                activePage === item.page
+                  ? "text-purple-400 bg-gray-700/60"
+                  : "text-gray-400 hover:text-white hover:bg-gray-700/30"
+              }
+            `}
           >
             {item.icon}
             <span className="text-xs font-medium">{item.label}</span>
             {activePage === item.page && (
               <motion.div
-                className="absolute bottom-0 h-1 w-8 bg-purple-500 rounded-full"
+                className="absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-8 bg-purple-500 rounded-full"
                 layoutId="underline"
               />
             )}
