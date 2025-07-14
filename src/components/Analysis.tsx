@@ -39,6 +39,7 @@ interface AnalysisProps {
     wakeTime: string
   ) => { hours: number; minutes: number; totalMinutes: number };
   calculateSleepScore: (durationMinutes: number, quality: number) => number;
+  settings: { sleepGoal: number; theme: string };
 }
 
 const Analysis: React.FC<AnalysisProps> = ({
@@ -46,6 +47,7 @@ const Analysis: React.FC<AnalysisProps> = ({
   availableFactors,
   calculateDuration,
   calculateSleepScore,
+  settings,
 }) => {
   const analysisData = useMemo(() => {
     return sleepData.map((d) => {
@@ -96,11 +98,8 @@ const Analysis: React.FC<AnalysisProps> = ({
       : 0;
 
   // --- Sleep Debt Calculation ---
-  // Use the user's sleep goal from the most recent settings (default 8 if not available)
-  const sleepGoal =
-    analysisData.length > 0
-      ? analysisData[analysisData.length - 1].goal || 8
-      : 8;
+  // Use the user's sleep goal from settings (default 8 if not available)
+  const sleepGoal = settings?.sleepGoal || 8;
   // Calculate sleep debt for the last 7 days
   const sleepDebt = analysisData.slice(-7).reduce((acc, curr) => {
     const debt = sleepGoal - curr.duration;

@@ -212,6 +212,7 @@ export default function Dashboard() {
                   availableFactors={availableFactors}
                   calculateDuration={calculateDuration}
                   calculateSleepScore={calculateSleepScore}
+                  settings={settings}
                 />
               )}
               {activePage === "history" && (
