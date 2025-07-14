@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -94,6 +94,18 @@ const Analysis: React.FC<AnalysisProps> = ({
       ? analysisData.reduce((acc, curr) => acc + curr.duration, 0) /
         analysisData.length
       : 0;
+
+  // --- Sleep Debt Calculation ---
+  // Use the user's sleep goal from the most recent settings (default 8 if not available)
+  const sleepGoal =
+    analysisData.length > 0
+      ? analysisData[analysisData.length - 1].goal || 8
+      : 8;
+  // Calculate sleep debt for the last 7 days
+  const sleepDebt = analysisData.slice(-7).reduce((acc, curr) => {
+    const debt = sleepGoal - curr.duration;
+    return acc + (debt > 0 ? debt : 0);
+  }, 0);
   const bestFactor =
     factorImpactData.length > 0
       ? factorImpactData.reduce((max, f) =>
@@ -141,6 +153,13 @@ const Analysis: React.FC<AnalysisProps> = ({
             • Your average sleep duration is{" "}
             <span className="font-bold text-white">
               {avgDuration.toFixed(1)} hours
+            </span>
+            .
+          </p>
+          <p>
+            • Your total sleep debt over the last 7 days is{" "}
+            <span className="font-bold text-red-400">
+              {sleepDebt.toFixed(1)} hours
             </span>
             .
           </p>
@@ -269,7 +288,310 @@ const Analysis: React.FC<AnalysisProps> = ({
           </div>
         </div>
       </motion.div>
+
+      {/* Sleep Debt Calculator Section */}
+      <div className="bg-white/5 backdrop-blur-sm p-6 rounded-2xl shadow-xl mt-8">
+        <h3 className="text-xl font-bold text-white mb-4">
+          Quick Sleep Debt Calculator
+        </h3>
+        <SleepDebtCalculator />
+      </div>
     </motion.div>
+  );
+};
+
+// --- SleepDebtCalculator Component ---
+const SleepDebtCalculator = () => {
+  const [actual, setActual] = useState<string>("");
+  const [goal, setGoal] = useState<string>("");
+  const [result, setResult] = useState<null | number>(null);
+  const [animatedFill, setAnimatedFill] = useState(0);
+  const wavePhaseRef = useRef(0);
+  const [renderWavePhase, setRenderWavePhase] = useState(0); // for re-render
+  const requestRef = useRef<number | null>(null);
+  const fillAnimRef = useRef<number | null>(null);
+  const [selectedQuote, setSelectedQuote] = useState("");
+
+  const handleCalculate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (actual === "" || goal === "" || goal === "0") return;
+    setResult(Number(goal) - Number(actual));
+    setAnimatedFill(0); // reset fill animation
+    // Calculate quote
+    const actualNumCalc = Number(actual);
+    const goalNumCalc = Number(goal);
+    const diff = actualNumCalc - goalNumCalc;
+    let newQuote = "";
+    if (Math.abs(diff) <= 0.25) {
+      newQuote = getRandomQuote(quotes.onTarget);
+    } else if (diff < -1) {
+      newQuote = getRandomQuote(quotes.needMore);
+    } else if (diff < -0.25) {
+      newQuote = getRandomQuote(quotes.almostThere);
+    } else if (diff > 1) {
+      newQuote = getRandomQuote(quotes.overslept);
+    } else if (diff > 0.25) {
+      newQuote = getRandomQuote(quotes.slightlyOver);
+    }
+    setSelectedQuote(newQuote);
+  };
+
+  const actualNum = actual === "" ? 0 : Number(actual);
+  const goalNum = goal === "" ? 0 : Number(goal);
+
+  // Quote options for each scenario
+  const quotes = {
+    onTarget: [
+      "You’re right on target, great job!",
+      "Perfect! Your sleep routine is on point.",
+      "Spot on! Keep up the healthy sleep habits.",
+    ],
+    almostThere: [
+      "Almost there! Try to get just a bit more sleep.",
+      "So close! A little more rest will do wonders.",
+      "Nearly at your goal—keep pushing for those extra minutes.",
+    ],
+    needMore: [
+      "You need more sleep, try to rest up tonight!",
+      "Consider winding down earlier for better rest.",
+      "Your body needs more recovery—aim for your goal tomorrow.",
+    ],
+    slightlyOver: [
+      "Slightly over your goal. Consistency is key!",
+      "A bit too much sleep—try to keep a steady schedule.",
+      "You’re getting plenty of rest! Just keep it balanced.",
+    ],
+    overslept: [
+      "You overslept, try to keep a consistent schedule!",
+      "Too much sleep can disrupt your rhythm—aim for your goal.",
+      "Oversleeping? Try to wake up at the same time each day.",
+    ],
+  };
+
+  function getRandomQuote(arr: string[]) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  let message = "";
+  if (result !== null) {
+    const diff = actualNum - goalNum;
+    if (Math.abs(diff) <= 0.25) {
+      message = "You are meeting your sleep goal!";
+    } else if (diff < -1) {
+      message = `You need to sleep ${Math.abs(diff).toFixed(
+        1
+      )} more hours to meet your goal.`;
+    } else if (diff < -0.25) {
+      message = `Almost there! Just ${Math.abs(diff).toFixed(
+        1
+      )} more hours to your goal.`;
+    } else if (diff > 1) {
+      message = `You are over your goal by ${diff.toFixed(1)} hours.`;
+    } else if (diff > 0.25) {
+      message = `Slightly over your goal by ${diff.toFixed(1)} hours.`;
+    }
+  }
+
+  // Liquid gauge (wave) visualization
+  const percent = goalNum > 0 ? Math.min((actualNum / goalNum) * 100, 100) : 0;
+  const radius = 72; // larger
+  const waveHeight = 18; // increased amplitude
+  const waveCount = 3; // increased frequency
+  const width = radius * 2;
+  const height = radius * 2 + 24; // taller
+  const centerY = height / 2;
+  // Calculate fill level: if 100%, fill to the top
+  const fillLevel =
+    animatedFill === 100 ? 0 : height - (animatedFill / 100) * height;
+
+  // Animate wave phase (horizontal movement) without causing React re-renders
+  useEffect(() => {
+    let running = true;
+    const animate = () => {
+      wavePhaseRef.current += 0.08;
+      setRenderWavePhase(wavePhaseRef.current); // only for re-render
+      if (running) requestRef.current = requestAnimationFrame(animate);
+    };
+    requestRef.current = requestAnimationFrame(animate);
+    return () => {
+      running = false;
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, []);
+
+  // Animate fill level (vertical rise)
+  useEffect(() => {
+    if (result === null) return;
+    let start = animatedFill;
+    let end = percent;
+    let startTime: number | null = null;
+    const duration = 900; // ms
+    const animateFill = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      setAnimatedFill(start + (end - start) * progress);
+      if (progress < 1) {
+        fillAnimRef.current = requestAnimationFrame(animateFill);
+      } else {
+        setAnimatedFill(end);
+      }
+    };
+    fillAnimRef.current = requestAnimationFrame(animateFill);
+    return () => {
+      if (fillAnimRef.current) cancelAnimationFrame(fillAnimRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, percent]);
+
+  // Generate wave path (with phase and optional offset)
+  function getWavePath(
+    phase: number,
+    offset: number = 0,
+    amp: number = waveHeight
+  ) {
+    let path = `M 0 ${fillLevel}`;
+    for (let x = 0; x <= width; x++) {
+      const y =
+        amp * Math.sin(2 * Math.PI * waveCount * (x / width) + phase + offset) +
+        fillLevel;
+      path += ` L ${x} ${y}`;
+    }
+    path += ` L ${width} ${height} L 0 ${height} Z`;
+    return path;
+  }
+
+  return (
+    <form onSubmit={handleCalculate} className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <label className="block mb-1 text-gray-300">
+            How many hours did you sleep?
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={actual}
+            onChange={(e) => setActual(e.target.value)}
+            className="w-full border border-gray-600 bg-gray-800 text-white rounded px-3 py-2"
+            required
+            placeholder="e.g. 7.5"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block mb-1 text-gray-300">
+            What is your sleep goal (hours)?
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="24"
+            step="0.1"
+            value={goal}
+            onChange={(e) => {
+              let val = e.target.value.replace(/[^0-9.]/g, "");
+              if (val === "0") val = "";
+              else if (val.length > 1) val = val.replace(/^0+/, "");
+              if (val !== "" && Number(val) > 24) val = "24";
+              setGoal(val);
+            }}
+            className="w-full border border-gray-600 bg-gray-800 text-white rounded px-3 py-2"
+            required
+            placeholder="e.g. 8"
+          />
+        </div>
+      </div>
+      <button
+        type="submit"
+        className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-lg transition-all"
+        disabled={actual === "" || goal === "" || goal === "0"}
+      >
+        Calculate Sleep Debt
+      </button>
+      {result !== null && (
+        <div className="mt-4 space-y-2 flex flex-col items-center">
+          <div className="text-lg font-semibold text-white">{message}</div>
+          {actual !== "" && goal !== "" && goal !== "0" && (
+            <div className="relative my-2" style={{ width, height }}>
+              <svg width={width} height={height} style={{ display: "block" }}>
+                <defs>
+                  <clipPath id="liquidClip">
+                    <circle cx={radius} cy={height / 2} r={radius - 2} />
+                  </clipPath>
+                  <linearGradient
+                    id="liquidGradient"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="100%"
+                  >
+                    <stop offset="0%" stopColor="#a78bfa" />
+                    <stop offset="100%" stopColor="#38bdf8" />
+                  </linearGradient>
+                </defs>
+                {/* Circle border */}
+                <circle
+                  cx={radius}
+                  cy={height / 2}
+                  r={radius - 2}
+                  fill="#181c2a"
+                  stroke="#a78bfa"
+                  strokeWidth="2"
+                  filter="drop-shadow(0 2px 8px #a78bfa55)"
+                />
+                {/* Animated wave fill */}
+                <g clipPath="url(#liquidClip)">
+                  {/* Main wave */}
+                  <path
+                    d={getWavePath(wavePhaseRef.current)}
+                    fill="url(#liquidGradient)"
+                    // No transition for smooth animation
+                  />
+                  {/* Second wave for more liquid effect */}
+                  <path
+                    d={getWavePath(
+                      wavePhaseRef.current,
+                      Math.PI,
+                      waveHeight * 0.7
+                    )}
+                    fill="#a78bfa"
+                    opacity="0.35"
+                    // No transition for smooth animation
+                  />
+                </g>
+                {/* Percent label */}
+                <text
+                  x="50%"
+                  y={height / 2 - 8}
+                  textAnchor="middle"
+                  fontSize="1.5rem"
+                  fill="#fff"
+                  fontWeight="bold"
+                  style={{ fontFamily: "Inter, sans-serif" }}
+                >
+                  {Math.round(percent)}%
+                </text>
+                {/* Actual/Goal label */}
+                <text
+                  x="50%"
+                  y={height / 2 + 22}
+                  textAnchor="middle"
+                  fontSize="1.1rem"
+                  fill="#c7d2fe"
+                  style={{ fontFamily: "Inter, sans-serif" }}
+                >
+                  {actual}h / {goal}h
+                </text>
+              </svg>
+            </div>
+          )}
+          <div className="text-purple-300 text-base text-center mt-2">
+            {selectedQuote}
+          </div>
+        </div>
+      )}
+    </form>
   );
 };
 
